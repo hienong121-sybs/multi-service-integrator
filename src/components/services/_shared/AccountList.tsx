@@ -31,7 +31,12 @@ export function AccountList({ serviceType }: { serviceType: string; uid: string 
           <p className="mt-1 text-sm text-slate-400">Manage service accounts, sub-resources, and metadata hydration.</p>
         </div>
         <div className="flex gap-3">
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search account name" className="w-64 rounded-xl border px-4 py-2.5 text-sm" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search account name"
+            className="msi-field w-64 py-2.5 text-sm"
+          />
           <button type="button" onClick={() => setAddOpen(true)} className="rounded-xl bg-sky-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-sky-400">
             + Add account
           </button>

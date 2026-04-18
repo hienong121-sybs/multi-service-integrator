@@ -114,10 +114,7 @@ export class GithubApi {
       logFiles.push({ name: `run-${runId}.log`, content: buffer.toString('utf8').slice(0, 20000) })
     }
 
-    const preview = logFiles.map((item) => `# ${item.name}
-${item.content}`).join('
-
-').slice(0, 50000)
+    const preview = logFiles.map((item) => `# ${item.name}\n${item.content}`).join('\n\n').slice(0, 50000)
     return {
       run_id: runId,
       repo_name: repo,

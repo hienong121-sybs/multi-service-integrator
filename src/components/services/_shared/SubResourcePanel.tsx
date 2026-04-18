@@ -56,7 +56,7 @@ export function SubResourcePanel({ serviceType, accountId, subResourceType }: Su
               key={field}
               value={queryValues[field] ?? ''}
               onChange={(e) => setQueryValues((current) => ({ ...current, [field]: e.target.value }))}
-              className="rounded-xl border px-4 py-3 text-sm"
+              className="msi-field text-sm"
               placeholder={`Enter ${field}`}
             />
           ))}
@@ -71,7 +71,7 @@ export function SubResourcePanel({ serviceType, accountId, subResourceType }: Su
                 key={field}
                 value={createData[field] ?? ''}
                 onChange={(e) => setCreateData((current) => ({ ...current, [field]: e.target.value }))}
-                className="min-h-[110px] rounded-xl border px-4 py-3 text-sm"
+                className="msi-field min-h-[110px] text-sm"
                 placeholder={`Create field: ${field}`}
               />
             ) : (
@@ -79,12 +79,17 @@ export function SubResourcePanel({ serviceType, accountId, subResourceType }: Su
                 key={field}
                 value={createData[field] ?? ''}
                 onChange={(e) => setCreateData((current) => ({ ...current, [field]: e.target.value }))}
-                className="rounded-xl border px-4 py-3 text-sm"
+                className="msi-field text-sm"
                 placeholder={`Create field: ${field}`}
               />
             )
           ))}
-          <textarea value={createData.payload ?? ''} onChange={(e) => setCreateData((current) => ({ ...current, payload: e.target.value }))} className="min-h-[110px] rounded-xl border px-4 py-3 text-sm sm:col-span-2" placeholder="Optional JSON helper payload for advanced inputs" />
+          <textarea
+            value={createData.payload ?? ''}
+            onChange={(e) => setCreateData((current) => ({ ...current, payload: e.target.value }))}
+            className="msi-field min-h-[110px] text-sm sm:col-span-2"
+            placeholder="Optional JSON helper payload for advanced inputs"
+          />
           <div className="sm:col-span-2 flex justify-end">
             <button type="button" onClick={handleCreate} className="rounded-xl bg-sky-500 px-4 py-2 text-sm font-medium text-white hover:bg-sky-400">{subResourceType.createActionLabel ?? 'Create resource'}</button>
           </div>

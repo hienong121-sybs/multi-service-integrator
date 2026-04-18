@@ -10,13 +10,25 @@ import type { ShardConfig } from './index'
 
 const apps: Map<string, App> = new Map()
 
+function findExistingGlobalApp(shardId: string): App | null {
+  const existing = admin.apps.find((app) => app?.name === shardId)
+  return existing ?? null
+}
+
 /** Returns the firebase-admin app instance for a shard. */
 export function getAdminApp(shardId: string): App {
   const app = apps.get(shardId)
-  if (!app) {
-    throw new Error(`DB-SHARD-002: Shard ${shardId} not initialized`)
+  if (app) {
+    return app
   }
-  return app
+
+  const existing = findExistingGlobalApp(shardId)
+  if (existing) {
+    apps.set(shardId, existing)
+    return existing
+  }
+
+  throw new Error(`DB-SHARD-002: Shard ${shardId} not initialized`)
 }
 
 /** Returns the admin RTDB database instance for a shard. */
@@ -29,6 +41,12 @@ export function getAdminDb(shardId: string): Database {
 export function initializeAdminApp(config: ShardConfig): App {
   const existing = apps.get(config.id)
   if (existing) return existing
+
+  const globalExisting = findExistingGlobalApp(config.id)
+  if (globalExisting) {
+    apps.set(config.id, globalExisting)
+    return globalExisting
+  }
 
   const decoded = Buffer.from(config.serviceAccountBase64, 'base64').toString('utf8')
   const serviceAccount = JSON.parse(decoded)

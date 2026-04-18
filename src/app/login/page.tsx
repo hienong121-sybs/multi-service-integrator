@@ -28,8 +28,8 @@ export default function LoginPage() {
           <div className="rounded-xl border border-slate-800 p-4">
             <p className="mb-3 text-sm font-medium text-slate-200">Custom / Supabase credentials</p>
             <div className="space-y-3">
-              <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none" />
-              <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" placeholder="Password" className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none" />
+              <input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Email" className="msi-field-dark" />
+              <input value={password} onChange={(e) => setPassword(e.target.value)} type="password" placeholder="Password" className="msi-field-dark" />
               <button type="button" onClick={() => signIn('custom', { email, password, callbackUrl: '/dashboard' })} className="w-full rounded-xl bg-sky-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-sky-400">
                 Đăng nhập bằng credentials
               </button>

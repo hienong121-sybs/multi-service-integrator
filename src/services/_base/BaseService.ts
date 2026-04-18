@@ -82,14 +82,17 @@ export abstract class BaseService<
   ): Promise<ServiceSaveResult> {
     const startedAt = Date.now()
     const id = nanoid(16)
-    const encryptedCreds = encryptService(this.SERVICE_TYPE, input.credentials)
+    const encryptedCreds = encryptService(
+      this.SERVICE_TYPE,
+      input.credentials as Record<string, unknown>,
+    )
     const node: RTDBNode = {
       _meta: this.buildMeta({
         name: input.name,
         status: 'active',
       }),
       credentials: encryptedCreds as Record<string, string>,
-      config: input.config,
+      config: input.config as Record<string, unknown>,
       sub_resources: {},
     }
 
@@ -120,7 +123,10 @@ export abstract class BaseService<
     const result = await ShardManager.getInstance().read<RTDBNode>(uid, this.SERVICE_TYPE, id)
     return {
       config: result.data.config as TConfig,
-      credentials: decryptService(this.SERVICE_TYPE, result.data.credentials as TCredential),
+      credentials: decryptService(
+        this.SERVICE_TYPE,
+        result.data.credentials as Record<string, unknown>,
+      ) as TCredential,
     }
   }
 
@@ -195,7 +201,10 @@ export abstract class BaseService<
       ...loaded.credentials,
       ...(input.credentials ?? {}),
     } as TCredential
-    const encrypted = encryptService(this.SERVICE_TYPE, mergedCredentials)
+    const encrypted = encryptService(
+      this.SERVICE_TYPE,
+      mergedCredentials as Record<string, unknown>,
+    )
     const mergedConfig = { ...loaded.config, ...(input.config ?? {}) }
     const newName = input.name ?? String(raw.node._meta.name ?? id)
     const nextStatus = String(raw.node._meta.status ?? 'active')
@@ -204,7 +213,7 @@ export abstract class BaseService<
       raw.shardId,
       raw.path,
       {
-        config: mergedConfig,
+        config: mergedConfig as Record<string, unknown>,
         credentials: encrypted as Record<string, string>,
         _meta: {
           ...raw.node._meta,

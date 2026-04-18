@@ -34,11 +34,17 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   callbacks: {
     async jwt({ token, user, account }) {
       if (user) {
+        const provider = account?.provider
+        const authProvider: 'google' | 'supabase' | 'custom' =
+          provider === 'google' || provider === 'supabase' || provider === 'custom'
+            ? provider
+            : 'custom'
+
         token.uid = user.id ?? token.sub ?? ''
         token.email = user.email ?? token.email
         token.name = user.name ?? token.name
         token.role = 'owner'
-        token.authProvider = account?.provider ?? 'custom'
+        token.authProvider = authProvider
 
         if (token.uid && token.email) {
           try {

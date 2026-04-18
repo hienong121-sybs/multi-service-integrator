@@ -32,7 +32,7 @@ export type AuthenticatedHandler = (
 export function withAuth(handler: AuthenticatedHandler, options: WithAuthOptions = {}) {
   return async (
     req: Request,
-    ctx: { params: Promise<Record<string, string>> | Record<string, string> },
+    ctx: { params: Promise<Record<string, string>> },
   ) => {
     const session = await auth()
     if (!session?.user?.uid) {
@@ -62,7 +62,7 @@ export function withAuth(handler: AuthenticatedHandler, options: WithAuthOptions
       )
     }
 
-    const resolvedParams: Record<string, string> = await Promise.resolve(ctx.params ?? {})
+    const resolvedParams: Record<string, string> = await Promise.resolve(ctx?.params ?? {})
 
     return handler(req, { params: resolvedParams, user })
   }

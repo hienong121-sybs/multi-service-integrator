@@ -368,6 +368,22 @@ notes: >
   tailwindcss@3.4.x with PostCSS tailwindcss/autoprefixer plugin, and removed
   client import chain from NotificationPanel to OperationLogger that pulled in
   firebase-admin (net/tls) on dashboard compile.
+  Build stabilization on 2026-04-18: fixed unterminated template/join string in
+  GithubApi log preview, pinned libsodium-wrappers to 0.7.15 to avoid missing
+  modules-esm/libsodium.mjs resolution in Next build, aligned withAuth/app auth
+  provider typing for Next.js 15 route context and NextAuth unions, and added
+  BaseService config/credential casts to satisfy strict RTDBNode record typing.
+  UI readability fix on 2026-04-18: set explicit dark input text color and
+  placeholder color for AddAccountModal/DynamicForm fields to prevent invisible
+  user-entered text on white input backgrounds in dark theme modal.
+  Runtime fix on 2026-04-18: FirebaseAdmin now reuses existing global admin app
+  instances by shard name (from admin.apps) before calling initializeApp, which
+  prevents duplicate app-name errors during Next.js dev hot reloads.
+  Form control standardization on 2026-04-18: introduced global reusable
+  classes msi-field and msi-field-dark in globals.css and migrated all current
+  project input/select/textarea usages (service forms, sub-resource panel,
+  search fields, and login credentials) to these shared styles for consistent
+  text visibility and focus states.
 
 standardization_notes:
   - "Removed stale route-group references; canonical app folders are /src/app/login and /src/app/dashboard."

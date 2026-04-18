@@ -74,7 +74,12 @@ export function AddAccountModal({ serviceType, isOpen, onClose, onSuccess }: Add
         <div className="mt-6 space-y-4">
           <div>
             <label className="mb-2 block text-sm font-medium text-slate-300">Account name</label>
-            <input value={name} onChange={(e) => setName(e.target.value)} className="w-full rounded-xl border px-4 py-3" placeholder="Primary production account" />
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="msi-field"
+              placeholder="Primary production account"
+            />
           </div>
 
           <DynamicForm fields={fields} values={values} onChange={(field, value) => setValues((current) => ({ ...current, [field]: value }))} />
