@@ -5,6 +5,8 @@
 
 import axios, { AxiosError } from 'axios'
 import type {
+  AzureOrganization,
+  AzurePipelineCreateInput,
   AzurePipeline,
   AzurePipelineRun,
   AzureProject,
@@ -33,15 +35,21 @@ export class AzureApi {
     this.authHeader = `Basic ${Buffer.from(`:${pat}`).toString('base64')}`
   }
 
-  /** Reads current profile display name for metadata. */
-  async getProfile(): Promise<{ displayName?: string }> {
-    return this.request<{ displayName?: string }>('https://app.vssps.visualstudio.com/_apis/profile/profiles/me?api-version=7.1-preview.3', true)
+  /** Reads current profile info for metadata and organization discovery. */
+  async getProfile(): Promise<{ id?: string; displayName?: string; emailAddress?: string }> {
+    return this.request<{ id?: string; displayName?: string; emailAddress?: string }>('https://app.vssps.visualstudio.com/_apis/profile/profiles/me?api-version=7.1-preview.3', true)
+  }
+
+  /** Lists organizations visible to the PAT owner. Uses first page to keep account create fast. */
+  async listOrganizations(memberId: string, continuationToken?: string): Promise<{ value: AzureOrganization[]; continuationToken?: string }> {
+    const url = `https://app.vsaex.visualstudio.com/_apis/accounts?memberId=${encodeURIComponent(memberId)}${continuationToken ? `&continuationToken=${encodeURIComponent(continuationToken)}` : ''}&api-version=7.1-preview.1`
+    return this.requestWithHeaders<{ value: AzureOrganization[] }>(url, true)
   }
 
   /** Lists projects in organization. */
-  async listProjects(): Promise<AzureProject[]> {
-    const response = await this.request<{ value: AzureProject[] }>(`/_apis/projects?api-version=7.1`)
-    return response.value
+  async listProjects(continuationToken?: string): Promise<{ value: AzureProject[]; continuationToken?: string }> {
+    const response = await this.requestWithHeaders<{ value: AzureProject[] }>(`/_apis/projects?$top=100${continuationToken ? `&continuationToken=${encodeURIComponent(continuationToken)}` : ''}&api-version=7.1`)
+    return response
   }
 
   /** Lists repositories in one project. */
@@ -54,6 +62,28 @@ export class AzureApi {
   async listPipelines(project: string): Promise<AzurePipeline[]> {
     const response = await this.request<{ value: AzurePipeline[] }>(`/${encodeURIComponent(project)}/_apis/pipelines?api-version=7.1`)
     return response.value
+  }
+
+  /** Creates a pipeline from YAML in a repository. */
+  async createPipelineFromYaml(input: AzurePipelineCreateInput): Promise<AzurePipeline> {
+    return this.request<AzurePipeline>(`/${encodeURIComponent(input.project)}/_apis/pipelines?api-version=7.1`, false, {
+      method: 'POST',
+      body: {
+        name: input.name,
+        configuration: {
+          type: 'yaml',
+          path: input.yaml_path,
+          repository: {
+            id: input.repo_id,
+            name: input.repo_name,
+            type: 'azureReposGit',
+            defaultBranch: input.branch && input.branch.startsWith('refs/heads/')
+              ? input.branch
+              : `refs/heads/${input.branch ?? 'main'}`,
+          },
+        },
+      },
+    })
   }
 
   /** Runs one pipeline. */
@@ -123,6 +153,48 @@ export class AzureApi {
       if (retries > 0 && (status === 429 || status >= 500)) {
         await sleep((4 - retries) * 500)
         return this.request<T>(path, absolute, { ...options, retries: retries - 1 })
+      }
+      throw {
+        code: AZ_ERROR_MAP[status] ?? 'AZ-API-001',
+        message: axiosError.message,
+        statusCode: status,
+      }
+    }
+  }
+
+  /** Executes request and returns continuation token when available. */
+  private async requestWithHeaders<T>(path: string, absolute = false, options: { method?: string; body?: unknown; retries?: number } = {}): Promise<T & { continuationToken?: string }> {
+    const response = await this.rawRequest(path, absolute, options)
+    const continuationToken = String(
+      response.headers['x-ms-continuationtoken']
+      ?? response.headers['x-continuation-token']
+      ?? '',
+    ) || undefined
+    return {
+      ...(response.data as T),
+      continuationToken,
+    }
+  }
+
+  private async rawRequest(path: string, absolute = false, options: { method?: string; body?: unknown; retries?: number } = {}) {
+    const retries = options.retries ?? 3
+    try {
+      return await axios({
+        url: absolute ? path : `${this.baseUrl}${path}`,
+        method: options.method ?? 'GET',
+        data: options.body,
+        timeout: 30_000,
+        headers: {
+          Authorization: this.authHeader,
+          'Content-Type': 'application/json',
+        },
+      })
+    } catch (error) {
+      const axiosError = error as AxiosError
+      const status = axiosError.response?.status ?? 500
+      if (retries > 0 && (status === 429 || status >= 500)) {
+        await sleep((4 - retries) * 500)
+        return this.rawRequest(path, absolute, { ...options, retries: retries - 1 })
       }
       throw {
         code: AZ_ERROR_MAP[status] ?? 'AZ-API-001',

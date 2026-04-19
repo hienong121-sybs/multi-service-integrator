@@ -416,6 +416,22 @@ tasks:
       - /src/lib/firebase/index.ts
     notes: "Implemented multi-project replication markers (replicatedShards), fixed shard_index placement on deterministic index shard, added read fallback across shards, and background backfill for newly added shards so old records sync once and are marked to avoid re-sync loops."
 
+
+  - task_id: T-508
+    title: "Azure PAT-first onboarding + organization/project/repo/pipeline improvements"
+    status: DONE
+    agent: chatgpt
+    started_at: 2026-04-19T09:10:00+00:00
+    completed_at: 2026-04-19T10:00:00+00:00
+    files_changed:
+      - /src/services/azure/types.ts
+      - /src/services/azure/AzureApi.ts
+      - /src/services/azure/AzureSchema.ts
+      - /src/services/azure/AzureService.ts
+      - /src/components/services/_shared/AzureActionsPanel.tsx
+      - /src/services/_registry/serviceForms.ts
+    notes: "Switched Azure add-account flow to PAT-first (organization optional), added organization discovery via PAT, pagination token support on list endpoints, organization-aware caching keys, and pipeline creation from repo YAML in Azure actions panel."
+
 found_bugs: []
 
 pending_files: []

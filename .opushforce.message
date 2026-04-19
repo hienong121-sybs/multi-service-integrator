@@ -1,9 +1,10 @@
-[opullbranch] 2026-04-19 09:17:46 +0700
+[opullbranch] 2026-04-19 10:34:01 +0700
 source_branch=codex/optimize-github-services-for-account-handling
 source_remote=o.url
-commits_ahead=4
-latest_commit=48fb156 feat(firebase): replicate records across all shards with backfill
+commits_ahead=5
+latest_commit=1adc8c4 fix(azure): support PAT-only onboarding and org discovery
 changes:
+- fix(azure): support PAT-only onboarding and org discovery
 - feat(firebase): replicate records across all shards with backfill
 - feat: add github file/zip actions and new azure devops service
 - feat(cloudflare): add cache-first tunnel and DNS control flow

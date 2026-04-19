@@ -113,7 +113,8 @@ export const SERVICE_FORM_FIELDS: Record<string, DynamicFormField[]> = {
     },
   ],
   azure: [
-    { name: 'organization', label: 'Organization', type: 'text', required: true, section: 'config', placeholder: 'your-org' },
+    { name: 'organization', label: 'Organization (optional)', type: 'text', required: false, section: 'config', placeholder: 'your-org' },
+    { name: 'org_hints', label: 'Org hints (comma separated)', type: 'textarea', required: false, section: 'config', placeholder: 'org-a,org-b' },
     { name: 'default_project', label: 'Default project', type: 'text', required: false, section: 'config' },
     { name: 'account_email', label: 'Account email', type: 'email', required: false, section: 'config' },
     { name: 'pat', label: 'PAT token', type: 'password', required: true, section: 'credentials', placeholder: 'azdpat...' },

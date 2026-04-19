@@ -10,7 +10,8 @@ export const azureCredentialSchema = z.object({
 })
 
 export const azureConfigSchema = z.object({
-  organization: z.string().min(1),
+  organization: z.string().optional(),
+  org_hints: z.string().optional(),
   default_project: z.string().optional(),
   account_email: z.string().email().optional(),
 })

@@ -8,10 +8,18 @@ export interface AzureCredential {
 }
 
 export interface AzureConfig {
-  organization: string
+  organization?: string
+  organizations?: string[]
+  org_hints?: string
   default_project?: string
   account_email?: string
   profile_name?: string
+}
+
+export interface AzureOrganization {
+  accountId: string
+  accountName: string
+  accountUri?: string
 }
 
 export interface AzureProject {
@@ -37,6 +45,15 @@ export interface AzurePipeline {
   id: number
   name: string
   folder?: string
+}
+
+export interface AzurePipelineCreateInput {
+  project: string
+  name: string
+  repo_id: string
+  repo_name: string
+  yaml_path: string
+  branch?: string
 }
 
 export interface AzurePipelineRun {

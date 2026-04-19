@@ -11,6 +11,7 @@ type Project = { id: string; name: string }
 type Repo = { id: string; name: string; defaultBranch?: string }
 type Pipeline = { id: number; name: string }
 type Run = { id: number; state?: string; result?: string }
+type Organization = { accountId: string; accountName: string }
 
 interface AzureActionsPanelProps {
   serviceType: string
@@ -19,17 +20,21 @@ interface AzureActionsPanelProps {
 
 /** Azure DevOps panel using select + action flow, with cache-first data loading. */
 export function AzureActionsPanel({ serviceType, accountId }: AzureActionsPanelProps) {
+  const [organizations, setOrganizations] = useState<Organization[]>([])
   const [projects, setProjects] = useState<Project[]>([])
   const [repos, setRepos] = useState<Repo[]>([])
   const [pipelines, setPipelines] = useState<Pipeline[]>([])
   const [runs, setRuns] = useState<Run[]>([])
 
+  const [selectedOrganization, setSelectedOrganization] = useState('')
   const [selectedProject, setSelectedProject] = useState('')
   const [selectedRepoId, setSelectedRepoId] = useState('')
   const [selectedPipelineId, setSelectedPipelineId] = useState('')
   const [selectedRunId, setSelectedRunId] = useState('')
 
   const [branch, setBranch] = useState('main')
+  const [newPipelineName, setNewPipelineName] = useState('')
+  const [newPipelineYamlPath, setNewPipelineYamlPath] = useState('/azure-pipelines.yml')
   const [filePath, setFilePath] = useState('/README.md')
   const [fileContent, setFileContent] = useState('')
   const [zipUrl, setZipUrl] = useState('')
@@ -49,9 +54,20 @@ export function AzureActionsPanel({ serviceType, accountId }: AzureActionsPanelP
     setIsBusy(true)
     setMessage('')
     try {
-      let projectRows = await fetchSubType('projects')
+      let organizationRows = await fetchSubType('organizations')
+      if (organizationRows.length === 0) {
+        organizationRows = await fetchSubType('organizations', {}, true)
+      }
+      const parsedOrganizations = organizationRows as Organization[]
+      setOrganizations(parsedOrganizations)
+      const org = selectedOrganization || parsedOrganizations[0]?.accountName || ''
+      if (org) {
+        setSelectedOrganization(org)
+      }
+
+      let projectRows = await fetchSubType('projects', org ? { organization: org } : {})
       if (projectRows.length === 0) {
-        projectRows = await fetchSubType('projects', {}, true)
+        projectRows = await fetchSubType('projects', org ? { organization: org } : {}, true)
       }
       const parsed = projectRows as Project[]
       setProjects(parsed)
@@ -59,7 +75,7 @@ export function AzureActionsPanel({ serviceType, accountId }: AzureActionsPanelP
         setSelectedProject(parsed[0].name)
       }
     } catch (error) {
-      setMessage(String((error as Error).message ?? 'Không thể tải projects'))
+      setMessage(String((error as Error).message ?? 'Không thể tải organizations/projects'))
     } finally {
       setIsBusy(false)
     }
@@ -75,7 +91,7 @@ export function AzureActionsPanel({ serviceType, accountId }: AzureActionsPanelP
     setIsBusy(true)
     setMessage('')
     try {
-      const rows = await fetchSubType('repos', { project: selectedProject }, refresh)
+      const rows = await fetchSubType('repos', { organization: selectedOrganization, project: selectedProject }, refresh)
       const parsed = rows as Repo[]
       setRepos(parsed)
       if (parsed[0]?.id) setSelectedRepoId(parsed[0].id)
@@ -91,7 +107,7 @@ export function AzureActionsPanel({ serviceType, accountId }: AzureActionsPanelP
     setIsBusy(true)
     setMessage('')
     try {
-      const rows = await fetchSubType('pipelines', { project: selectedProject }, refresh)
+      const rows = await fetchSubType('pipelines', { organization: selectedOrganization, project: selectedProject }, refresh)
       const parsed = rows as Pipeline[]
       setPipelines(parsed)
       if (parsed[0]?.id) setSelectedPipelineId(String(parsed[0].id))
@@ -107,7 +123,7 @@ export function AzureActionsPanel({ serviceType, accountId }: AzureActionsPanelP
     setIsBusy(true)
     setMessage('')
     try {
-      const rows = await fetchSubType('pipeline-runs', { project: selectedProject, pipeline_id: selectedPipelineId }, refresh)
+      const rows = await fetchSubType('pipeline-runs', { organization: selectedOrganization, project: selectedProject, pipeline_id: selectedPipelineId }, refresh)
       const parsed = rows as Run[]
       setRuns(parsed)
       if (parsed[0]?.id) setSelectedRunId(String(parsed[0].id))
@@ -127,7 +143,7 @@ export function AzureActionsPanel({ serviceType, accountId }: AzureActionsPanelP
       const res = await fetch(`/api/services/${serviceType}/${accountId}/sub/pipeline-runs`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ data: { project: selectedProject, pipeline_id: Number(selectedPipelineId), branch: ref } }),
+        body: JSON.stringify({ data: { organization: selectedOrganization, project: selectedProject, pipeline_id: Number(selectedPipelineId), branch: ref } }),
       })
       const body = await res.json().catch(() => null)
       if (!res.ok) throw new Error(body?.error?.message ?? 'Run pipeline failed')
@@ -145,7 +161,7 @@ export function AzureActionsPanel({ serviceType, accountId }: AzureActionsPanelP
     setIsBusy(true)
     setMessage('')
     try {
-      const qs = new URLSearchParams({ project: selectedProject, pipeline_id: selectedPipelineId })
+      const qs = new URLSearchParams({ organization: selectedOrganization, project: selectedProject, pipeline_id: selectedPipelineId })
       const res = await fetch(`/api/services/${serviceType}/${accountId}/sub/pipeline-runs/${selectedRunId}?${qs.toString()}`, { method: 'DELETE' })
       if (!res.ok) {
         const body = await res.json().catch(() => null)
@@ -165,7 +181,7 @@ export function AzureActionsPanel({ serviceType, accountId }: AzureActionsPanelP
     setIsBusy(true)
     setMessage('')
     try {
-      const rows = await fetchSubType('repo-file', { project: selectedProject, repo_id: selectedRepoId, path: filePath, branch }, refresh)
+      const rows = await fetchSubType('repo-file', { organization: selectedOrganization, project: selectedProject, repo_id: selectedRepoId, path: filePath, branch }, refresh)
       const first = (rows[0] ?? {}) as { content?: string }
       setFileContent(first.content ?? '')
       setMessage('Đã tải nội dung file.')
@@ -181,7 +197,7 @@ export function AzureActionsPanel({ serviceType, accountId }: AzureActionsPanelP
     setIsBusy(true)
     setMessage('')
     try {
-      const rows = await fetchSubType('repo-zip', { project: selectedProject, repo_id: selectedRepoId, branch }, refresh)
+      const rows = await fetchSubType('repo-zip', { organization: selectedOrganization, project: selectedProject, repo_id: selectedRepoId, branch }, refresh)
       const first = (rows[0] ?? {}) as { download_url?: string }
       setZipUrl(first.download_url ?? '')
       setMessage('Đã chuẩn bị link ZIP.')
@@ -202,6 +218,40 @@ export function AzureActionsPanel({ serviceType, accountId }: AzureActionsPanelP
     }
   }
 
+  async function createPipelineFromYaml() {
+    if (!selectedOrganization || !selectedProject || !selectedRepoId || !newPipelineName || !newPipelineYamlPath) return
+    const repo = repos.find((item) => item.id === selectedRepoId)
+    if (!repo) return
+
+    setIsBusy(true)
+    setMessage('')
+    try {
+      const res = await fetch(`/api/services/${serviceType}/${accountId}/sub/pipelines`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          data: {
+            organization: selectedOrganization,
+            project: selectedProject,
+            name: newPipelineName,
+            repo_id: selectedRepoId,
+            repo_name: repo.name,
+            yaml_path: newPipelineYamlPath,
+            branch,
+          },
+        }),
+      })
+      const body = await res.json().catch(() => null)
+      if (!res.ok) throw new Error(body?.error?.message ?? 'Create pipeline failed')
+      setMessage('Đã tạo pipeline từ YAML.')
+      await loadPipelines(true)
+    } catch (error) {
+      setMessage(String((error as Error).message ?? 'Không thể tạo pipeline từ YAML'))
+    } finally {
+      setIsBusy(false)
+    }
+  }
+
   const selectedRun = useMemo(() => runs.find((run) => String(run.id) === selectedRunId), [runs, selectedRunId])
 
   return (
@@ -215,6 +265,12 @@ export function AzureActionsPanel({ serviceType, accountId }: AzureActionsPanelP
       </div>
 
       <div className="grid gap-3 rounded-2xl border border-slate-800 bg-slate-950 p-4 md:grid-cols-2">
+        <select className="msi-field text-sm" value={selectedOrganization} onChange={(e) => setSelectedOrganization(e.target.value)}>
+          <option value="">Chọn organization</option>
+          {organizations.map((organization) => (
+            <option key={organization.accountId} value={organization.accountName}>{organization.accountName}</option>
+          ))}
+        </select>
         <select className="msi-field text-sm" value={selectedProject} onChange={(e) => setSelectedProject(e.target.value)}>
           <option value="">Chọn project</option>
           {projects.map((project) => (
@@ -244,6 +300,9 @@ export function AzureActionsPanel({ serviceType, accountId }: AzureActionsPanelP
         </select>
         <input className="msi-field text-sm" value={branch} onChange={(e) => setBranch(e.target.value)} placeholder="Branch (main)" />
         <button type="button" onClick={runPipeline} className="rounded-xl bg-sky-500 px-4 py-2 text-sm font-medium text-white hover:bg-sky-400" disabled={isBusy || !selectedPipelineId || !selectedProject}>Run pipeline</button>
+        <input className="msi-field text-sm" value={newPipelineName} onChange={(e) => setNewPipelineName(e.target.value)} placeholder="New pipeline name" />
+        <input className="msi-field text-sm" value={newPipelineYamlPath} onChange={(e) => setNewPipelineYamlPath(e.target.value)} placeholder="YAML path (/azure-pipelines.yml)" />
+        <button type="button" onClick={createPipelineFromYaml} className="rounded-xl border border-slate-700 px-4 py-2 text-sm text-slate-300 hover:bg-slate-800" disabled={isBusy || !selectedProject || !selectedRepoId || !newPipelineName || !newPipelineYamlPath}>Create pipeline from YAML</button>
       </div>
 
       <div className="grid gap-3 rounded-2xl border border-slate-800 bg-slate-950 p-4 md:grid-cols-3">
