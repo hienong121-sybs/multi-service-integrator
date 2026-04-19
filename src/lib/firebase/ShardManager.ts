@@ -29,6 +29,19 @@ type ReplicationJob = {
   mode: 'upsert' | 'delete'
 }
 
+type ServiceNodeShape = {
+  _meta?: {
+    name?: unknown
+    status?: unknown
+    created_at?: unknown
+    updated_at?: unknown
+  }
+  config?: {
+    account_email?: unknown
+    email?: unknown
+  }
+}
+
 function normalizePath(path: string): string {
   return path.startsWith('/') ? path : `/${path}`
 }
@@ -123,6 +136,25 @@ export class ShardManager {
     }
   }
 
+  private buildSummaryFromNode(node: ServiceNodeShape, fallbackName: string): ShardIndexSummary {
+    const updatedAt = typeof node?._meta?.updated_at === 'string'
+      ? node._meta.updated_at
+      : new Date().toISOString()
+    const status = typeof node?._meta?.status === 'string'
+      ? node._meta.status
+      : 'active'
+    const name = typeof node?._meta?.name === 'string' && node._meta.name.trim()
+      ? node._meta.name
+      : fallbackName
+    const email = typeof node?.config?.account_email === 'string'
+      ? node.config.account_email
+      : typeof node?.config?.email === 'string'
+        ? node.config.email
+        : undefined
+
+    return sanitizeSummary({ name, status, email, updatedAt })
+  }
+
   /** Selects an available shard for a write operation. */
   getWriteShard(): ShardConfig {
     this.ensureShardsConfigured()
@@ -182,10 +214,29 @@ export class ShardManager {
 
   /** Reads a record by looking up the shard index first. */
   async read<T>(uid: string, service: string, recordId: string): Promise<ReadResult<T>> {
-    const shardId = await this.readShardIndex(uid, service, recordId)
-    if (!shardId) throw new Error('DB-READ-001: Record not found in shard index')
-
     const path = `/${uid}/services/${service}/${recordId}`
+    const shardId = await this.readShardIndex(uid, service, recordId)
+    if (!shardId) {
+      for (const candidateShardId of this.shards.keys()) {
+        const candidateSnapshot = await getAdminDb(candidateShardId).ref(path).get()
+        if (!candidateSnapshot.exists()) continue
+        const node = candidateSnapshot.val() as ServiceNodeShape
+        await this.writeShardIndex(
+          uid,
+          service,
+          recordId,
+          candidateShardId,
+          this.buildSummaryFromNode(node, recordId),
+        )
+        return {
+          data: candidateSnapshot.val() as T,
+          shardId: candidateShardId,
+          path,
+        }
+      }
+      throw new Error('DB-READ-001: Record not found in shard index')
+    }
+
     const primarySnapshot = await getAdminDb(shardId).ref(path).get()
     if (primarySnapshot.exists()) {
       return { data: primarySnapshot.val() as T, shardId, path }
@@ -338,12 +389,45 @@ export class ShardManager {
     const snapshot = await indexDb.ref(`/shard_index/${uid}/${service}`).get()
     const value = (snapshot.val() ?? {}) as Record<string, ShardIndexEntry>
 
-    return Object.entries(value).map(([id, entry]) => ({
+    const indexed = Object.entries(value).map(([id, entry]) => ({
       id,
       shardId: entry.shardId,
       createdAt: entry.createdAt,
       summary: entry.summary,
     }))
+    if (indexed.length > 0) return indexed
+
+    const recovered = new Map<string, ListItem>()
+    for (const shardId of this.shards.keys()) {
+      const fallbackSnapshot = await getAdminDb(shardId).ref(`/${uid}/services/${service}`).get()
+      if (!fallbackSnapshot.exists()) continue
+      const nodes = (fallbackSnapshot.val() ?? {}) as Record<string, ServiceNodeShape>
+      for (const [id, node] of Object.entries(nodes)) {
+        if (recovered.has(id)) continue
+        recovered.set(id, {
+          id,
+          shardId,
+          createdAt: typeof node?._meta?.created_at === 'string' ? node._meta.created_at : undefined,
+          summary: this.buildSummaryFromNode(node, id),
+        })
+      }
+    }
+
+    if (recovered.size > 0) {
+      await Promise.all(
+        Array.from(recovered.values()).map((item) =>
+          this.writeShardIndex(
+            uid,
+            service,
+            item.id,
+            item.shardId,
+            item.summary,
+          ),
+        ),
+      )
+    }
+
+    return Array.from(recovered.values())
   }
 
   /** Deletes a node from a known shard path. */

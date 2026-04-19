@@ -78,6 +78,11 @@ class ClientCacheImpl {
     this.store.delete(key)
   }
 
+  /** Build cache key chuẩn cho service list. */
+  serviceListKey(serviceType: string): string {
+    return ClientCacheImpl.serviceListKey(serviceType)
+  }
+
   /** Prefetch silently — không block, không throw. */
   prefetch<T>(key: string, fetcher: () => Promise<T>, staleMs = 10_000, expireMs = 60_000): void {
     const cached = this.store.get(key)

@@ -63,6 +63,16 @@ class ApiCacheImpl {
   }
 
   /** Build cache key chuẩn cho service list. */
+  serviceListKey(uid: string, serviceType: string): string {
+    return ApiCacheImpl.serviceListKey(uid, serviceType)
+  }
+
+  /** Build cache key cho service detail. */
+  serviceDetailKey(uid: string, serviceType: string, id: string): string {
+    return ApiCacheImpl.serviceDetailKey(uid, serviceType, id)
+  }
+
+  /** Build cache key chuẩn cho service list. */
   static serviceListKey(uid: string, serviceType: string): string {
     return `svc-list:${uid}:${serviceType}`
   }

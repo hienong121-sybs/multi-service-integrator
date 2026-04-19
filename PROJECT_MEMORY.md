@@ -432,6 +432,41 @@ tasks:
       - /src/services/_registry/serviceForms.ts
     notes: "Switched Azure add-account flow to PAT-first (organization optional), added organization discovery via PAT, pagination token support on list endpoints, organization-aware caching keys, and pipeline creation from repo YAML in Azure actions panel."
 
+  - task_id: T-509
+    title: "Cache key runtime fix + service create stabilization (Azure/Google)"
+    status: DONE
+    agent: chatgpt
+    started_at: 2026-04-19T10:40:00+07:00
+    completed_at: 2026-04-19T10:56:00+07:00
+    files_changed:
+      - /src/lib/cache/ClientCache.ts
+      - /src/lib/cache/ApiCache.ts
+      - /src/app/api/services/[type]/route.ts
+      - /src/services/google-creds/GoogleCredsService.ts
+    notes: "Fixed instance-access runtime bug for serviceListKey/serviceDetailKey (ClientCache + ApiCache), added guarded error mapping in service-create route to avoid opaque 500s, and stabilized Google credential_type handling when value comes from config-driven dynamic form."
+
+  - task_id: T-510
+    title: "Azure organization discovery endpoint fix + sub-resource error mapping"
+    status: DONE
+    agent: chatgpt
+    started_at: 2026-04-19T10:57:00+07:00
+    completed_at: 2026-04-19T11:00:00+07:00
+    files_changed:
+      - /src/services/azure/AzureApi.ts
+      - /src/app/api/services/[type]/[id]/sub/[subType]/route.ts
+    notes: "Fixed Azure organizations endpoint host from app.vsaex to app.vssps (404 root cause) and added try/catch error mapping in sub-resource GET/POST route so upstream service errors return structured API errors instead of opaque 500 responses."
+
+  - task_id: T-511
+    title: "Service list self-heal for missing shard_index (GitHub/Cloudflare visibility recovery)"
+    status: DONE
+    agent: chatgpt
+    started_at: 2026-04-19T11:05:00+07:00
+    completed_at: 2026-04-19T11:14:00+07:00
+    files_changed:
+      - /src/lib/firebase/ShardManager.ts
+      - /src/app/api/services/[type]/route.ts
+    notes: "Added index self-heal fallback: when shard_index is missing, list/read now scan actual records under /{uid}/services/{type}, rebuild shard_index summaries, and return recovered records immediately. Added GET list refresh bypass via ?refresh=1 to skip server ApiCache during data recovery checks."
+
 found_bugs: []
 
 pending_files: []

@@ -42,7 +42,7 @@ export class AzureApi {
 
   /** Lists organizations visible to the PAT owner. Uses first page to keep account create fast. */
   async listOrganizations(memberId: string, continuationToken?: string): Promise<{ value: AzureOrganization[]; continuationToken?: string }> {
-    const url = `https://app.vsaex.visualstudio.com/_apis/accounts?memberId=${encodeURIComponent(memberId)}${continuationToken ? `&continuationToken=${encodeURIComponent(continuationToken)}` : ''}&api-version=7.1-preview.1`
+    const url = `https://app.vssps.visualstudio.com/_apis/accounts?memberId=${encodeURIComponent(memberId)}${continuationToken ? `&continuationToken=${encodeURIComponent(continuationToken)}` : ''}&api-version=7.1-preview.1`
     return this.requestWithHeaders<{ value: AzureOrganization[] }>(url, true)
   }
 

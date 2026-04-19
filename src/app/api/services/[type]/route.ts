@@ -16,19 +16,39 @@ const createSchema = z.object({
   credentials: z.record(z.string(), z.unknown()).default({}),
 })
 
+function toHttpStatus(error: unknown): number {
+  const candidate = (error as { status?: unknown; statusCode?: unknown } | null)
+  const status = Number(candidate?.statusCode ?? candidate?.status)
+  return Number.isInteger(status) && status >= 400 && status <= 599 ? status : 500
+}
+
+function toErrorCode(error: unknown): string {
+  const code = (error as { code?: unknown } | null)?.code
+  return typeof code === 'string' && code ? code : 'SERVICE-ERR-001'
+}
+
+function toErrorMessage(error: unknown): string {
+  const message = (error as { message?: unknown } | null)?.message
+  return typeof message === 'string' && message ? message : 'Service operation failed'
+}
+
 export const GET = withAuth(async (_req, { params, user }) => {
   if (!ServiceRegistry.has(params.type)) {
     return fail('SERVICE-404', 'Service not registered', 404)
   }
   const service = ServiceRegistry.get(params.type)
+  const url = new URL(_req.url)
+  const forceRefresh = url.searchParams.get('refresh') === '1'
 
   // Cache GET list 30 giây — tránh RTDB read mỗi navigation
   const cacheKey = ApiCache.serviceListKey(user.uid, params.type)
-  const items = await ApiCache.get(
-    cacheKey,
-    () => service.list(user.uid),
-    30_000,
-  )
+  const items = forceRefresh
+    ? await service.list(user.uid)
+    : await ApiCache.get(
+        cacheKey,
+        () => service.list(user.uid),
+        30_000,
+      )
 
   return ok(items, undefined, { total: items.length })
 })
@@ -45,23 +65,37 @@ export const POST = withAuth(async (req, { params, user }) => {
   }
 
   const service = ServiceRegistry.get(params.type)
-  const credentials = parsed.data.credentials as Record<string, unknown>
+  const credentials = { ...(parsed.data.credentials as Record<string, unknown>) }
   const config = parsed.data.config as Record<string, unknown>
-
-  const isValid = await service.validateCredentials(credentials, config)
-  if (!isValid) {
-    return fail('SERVICE-AUTH-001', 'Credential validation failed', 400)
+  if (
+    typeof config.credential_type === 'string'
+    && typeof credentials.credential_type !== 'string'
+  ) {
+    credentials.credential_type = config.credential_type
   }
 
-  const metadata = await service.fetchMetadata(credentials, config)
-  const result = await service.save(user.uid, {
-    name: parsed.data.name,
-    config: { ...config, ...metadata },
-    credentials,
-  })
+  try {
+    const isValid = await service.validateCredentials(credentials, config)
+    if (!isValid) {
+      return fail('SERVICE-AUTH-001', 'Credential validation failed', 400)
+    }
 
-  // Invalidate cache sau khi tạo mới → GET tiếp theo sẽ fetch fresh
-  ApiCache.invalidate(ApiCache.serviceListKey(user.uid, params.type))
+    const metadata = await service.fetchMetadata(credentials, config)
+    const result = await service.save(user.uid, {
+      name: parsed.data.name,
+      config: { ...config, ...metadata },
+      credentials,
+    })
 
-  return ok({ ...result, message: 'Account created' }, { status: 201 })
+    // Invalidate cache sau khi tạo mới → GET tiếp theo sẽ fetch fresh
+    ApiCache.invalidate(ApiCache.serviceListKey(user.uid, params.type))
+
+    return ok({ ...result, message: 'Account created' }, { status: 201 })
+  } catch (error) {
+    return fail(
+      toErrorCode(error),
+      toErrorMessage(error),
+      toHttpStatus(error),
+    )
+  }
 })
