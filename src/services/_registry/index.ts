@@ -8,6 +8,7 @@ import '@/services/cloudflare'
 import '@/services/supabase'
 import '@/services/resend'
 import '@/services/google-creds'
+import '@/services/azure'
 
 export * from './ServiceRegistry'
 export * from './serviceMeta'

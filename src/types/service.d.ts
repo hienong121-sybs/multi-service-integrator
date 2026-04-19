@@ -9,6 +9,7 @@ export type ServiceType =
   | 'supabase'
   | 'resend'
   | 'google-creds'
+  | 'azure'
 
 export type ServiceStatus = 'active' | 'invalid' | 'pending' | 'error'
 

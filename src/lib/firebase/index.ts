@@ -28,6 +28,7 @@ export interface ReadResult<T = unknown> {
 export interface ShardIndexEntry {
   shardId: string
   createdAt: string
+  replicatedShards?: Record<string, string>
 }
 
 export interface RTDBNode {

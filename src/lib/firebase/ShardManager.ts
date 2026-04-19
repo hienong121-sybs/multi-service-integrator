@@ -21,6 +21,14 @@ type ShardIndexSummary = {
   updatedAt: string
 }
 
+type ReplicationJob = {
+  uid: string
+  service: string
+  recordId: string
+  sourceShardId: string
+  mode: 'upsert' | 'delete'
+}
+
 function normalizePath(path: string): string {
   return path.startsWith('/') ? path : `/${path}`
 }
@@ -60,6 +68,7 @@ export interface ShardIndexEntry {
   shardId: string
   createdAt: string
   summary?: ShardIndexSummary
+  replicatedShards?: Record<string, string>
 }
 
 export interface ListItem {
@@ -74,6 +83,9 @@ export class ShardManager {
   private shards: Map<string, ShardConfig> = new Map()
   private healthCache: Map<string, HealthStatus> = new Map()
   private initialized = false
+  private readonly replicationQueue: ReplicationJob[] = []
+  private processingReplication = false
+  private backfillStarted = false
 
   private constructor() {}
 
@@ -93,6 +105,15 @@ export class ShardManager {
       this.shards.set(shard.id, shard)
     })
     this.initialized = true
+    this.startBackfillForMissingReplicas()
+  }
+
+  private getIndexShardId(): string {
+    this.ensureShardsConfigured()
+    const shardIds = Array.from(this.shards.keys()).sort()
+    const indexShardId = shardIds[0]
+    if (!indexShardId) throw new Error('DB-SHARD-001: No Firebase shards configured')
+    return indexShardId
   }
 
   private ensureShardsConfigured(): void {
@@ -143,6 +164,13 @@ export class ShardManager {
         shard.id,
         summary,
       )
+      this.enqueueReplication({
+        uid: extracted.uid,
+        service: extracted.service,
+        recordId: extracted.recordId,
+        sourceShardId: shard.id,
+        mode: 'upsert',
+      })
     }
 
     return {
@@ -158,10 +186,144 @@ export class ShardManager {
     if (!shardId) throw new Error('DB-READ-001: Record not found in shard index')
 
     const path = `/${uid}/services/${service}/${recordId}`
-    const snapshot = await getAdminDb(shardId).ref(path).get()
-    if (!snapshot.exists()) throw new Error('DB-READ-001: Record not found')
+    const primarySnapshot = await getAdminDb(shardId).ref(path).get()
+    if (primarySnapshot.exists()) {
+      return { data: primarySnapshot.val() as T, shardId, path }
+    }
 
-    return { data: snapshot.val() as T, shardId, path }
+    for (const candidateShardId of this.shards.keys()) {
+      if (candidateShardId === shardId) continue
+      const candidateSnapshot = await getAdminDb(candidateShardId).ref(path).get()
+      if (!candidateSnapshot.exists()) continue
+
+      await getAdminDb(this.getIndexShardId())
+        .ref(`/shard_index/${uid}/${service}/${recordId}`)
+        .update({
+          shardId: candidateShardId,
+          [`replicatedShards/${candidateShardId}`]: new Date().toISOString(),
+        })
+
+      return {
+        data: candidateSnapshot.val() as T,
+        shardId: candidateShardId,
+        path,
+      }
+    }
+
+    throw new Error('DB-READ-001: Record not found')
+  }
+
+  private enqueueReplication(job: ReplicationJob): void {
+    this.replicationQueue.push(job)
+    if (!this.processingReplication) {
+      void this.processReplicationQueue()
+    }
+  }
+
+  private async processReplicationQueue(): Promise<void> {
+    if (this.processingReplication) return
+    this.processingReplication = true
+
+    try {
+      while (this.replicationQueue.length > 0) {
+        const job = this.replicationQueue.shift()
+        if (!job) continue
+        await this.replicateJob(job)
+      }
+    } finally {
+      this.processingReplication = false
+    }
+  }
+
+  private async replicateJob(job: ReplicationJob): Promise<void> {
+    const path = `/${job.uid}/services/${job.service}/${job.recordId}`
+    const indexRef = getAdminDb(this.getIndexShardId())
+      .ref(`/shard_index/${job.uid}/${job.service}/${job.recordId}`)
+    const entrySnapshot = await indexRef.get()
+    if (!entrySnapshot.exists()) return
+    const entry = entrySnapshot.val() as ShardIndexEntry
+    const replicatedShards = entry.replicatedShards ?? {}
+
+    if (job.mode === 'delete') {
+      await Promise.all(
+        Array.from(this.shards.keys()).map((shardId) =>
+          getAdminDb(shardId).ref(path).remove().catch(() => undefined),
+        ),
+      )
+      await indexRef.remove()
+      return
+    }
+
+    const sourceSnapshot = await getAdminDb(job.sourceShardId).ref(path).get()
+    if (!sourceSnapshot.exists()) return
+    const payload = sourceSnapshot.val()
+
+    const missingShardIds = Array.from(this.shards.keys()).filter(
+      (shardId) => shardId !== job.sourceShardId && !replicatedShards[shardId],
+    )
+    if (missingShardIds.length === 0) return
+
+    const nowIso = new Date().toISOString()
+    await Promise.all(
+      missingShardIds.map(async (targetShardId) => {
+        await getAdminDb(targetShardId).ref(path).set(payload)
+      }),
+    )
+
+    const nextReplicatedShards = missingShardIds.reduce<Record<string, string>>(
+      (acc, shardId) => {
+        acc[shardId] = nowIso
+        return acc
+      },
+      {
+        ...replicatedShards,
+        [job.sourceShardId]: replicatedShards[job.sourceShardId] ?? nowIso,
+      },
+    )
+
+    await indexRef.update({
+      replicatedShards: nextReplicatedShards,
+    })
+  }
+
+  private startBackfillForMissingReplicas(): void {
+    if (this.backfillStarted) return
+    this.backfillStarted = true
+
+    queueMicrotask(() => {
+      void this.backfillMissingReplicas().catch(() => undefined)
+    })
+  }
+
+  private async backfillMissingReplicas(): Promise<void> {
+    if (this.shards.size <= 1) return
+    const snapshot = await getAdminDb(this.getIndexShardId()).ref('/shard_index').get()
+    if (!snapshot.exists()) return
+
+    const byUid = (snapshot.val() ?? {}) as Record<
+      string,
+      Record<string, Record<string, ShardIndexEntry>>
+    >
+
+    for (const [uid, byService] of Object.entries(byUid)) {
+      for (const [service, byRecordId] of Object.entries(byService)) {
+        for (const [recordId, entry] of Object.entries(byRecordId)) {
+          const replicatedShards = entry.replicatedShards ?? {}
+          const allReplicated = Array.from(this.shards.keys()).every(
+            (shardId) => Boolean(replicatedShards[shardId]),
+          )
+          if (allReplicated) continue
+
+          this.enqueueReplication({
+            uid,
+            service,
+            recordId,
+            sourceShardId: entry.shardId,
+            mode: 'upsert',
+          })
+        }
+      }
+    }
   }
 
   /**
@@ -172,7 +334,7 @@ export class ShardManager {
     this.ensureInitialized()
     if (this.shards.size === 0) return []
 
-    const indexDb = getAdminDb(this.getWriteShard().id)
+    const indexDb = getAdminDb(this.getIndexShardId())
     const snapshot = await indexDb.ref(`/shard_index/${uid}/${service}`).get()
     const value = (snapshot.val() ?? {}) as Record<string, ShardIndexEntry>
 
@@ -187,7 +349,21 @@ export class ShardManager {
   /** Deletes a node from a known shard path. */
   async delete(shardId: string, path: string): Promise<void> {
     this.getReadShard(shardId)
-    await getAdminDb(shardId).ref(normalizePath(path)).remove()
+    const normalizedPath = normalizePath(path)
+    const extracted = extractServicePath(normalizedPath)
+    if (!extracted) {
+      await getAdminDb(shardId).ref(normalizedPath).remove()
+      return
+    }
+
+    await Promise.all(
+      Array.from(this.shards.keys()).map((id) =>
+        getAdminDb(id).ref(normalizedPath).remove().catch(() => undefined),
+      ),
+    )
+    await getAdminDb(this.getIndexShardId())
+      .ref(`/shard_index/${extracted.uid}/${extracted.service}/${extracted.recordId}`)
+      .remove()
   }
 
   /**
@@ -208,9 +384,17 @@ export class ShardManager {
     if (summary) {
       const extracted = extractServicePath(path)
       if (extracted) {
-        await getAdminDb(this.getWriteShard().id)
+        await getAdminDb(this.getIndexShardId())
           .ref(`/shard_index/${extracted.uid}/${extracted.service}/${extracted.recordId}/summary`)
           .update(sanitizeSummary(summary))
+
+        this.enqueueReplication({
+          uid: extracted.uid,
+          service: extracted.service,
+          recordId: extracted.recordId,
+          sourceShardId: shardId,
+          mode: 'upsert',
+        })
       }
     }
   }
@@ -226,12 +410,16 @@ export class ShardManager {
     shardId: string,
     summary?: ShardIndexSummary,
   ): Promise<void> {
+    const nowIso = new Date().toISOString()
     const entry: ShardIndexEntry = {
       shardId,
-      createdAt: new Date().toISOString(),
+      createdAt: nowIso,
       ...(summary ? { summary: sanitizeSummary(summary) } : {}),
+      replicatedShards: {
+        [shardId]: nowIso,
+      },
     }
-    await getAdminDb(this.getWriteShard().id)
+    await getAdminDb(this.getIndexShardId())
       .ref(`/shard_index/${uid}/${service}/${recordId}`)
       .set(entry)
   }
@@ -243,7 +431,7 @@ export class ShardManager {
     recordId: string,
   ): Promise<string | null> {
     this.ensureShardsConfigured()
-    const snapshot = await getAdminDb(this.getWriteShard().id)
+    const snapshot = await getAdminDb(this.getIndexShardId())
       .ref(`/shard_index/${uid}/${service}/${recordId}`)
       .get()
     if (!snapshot.exists()) return null

@@ -32,6 +32,21 @@ export interface CFTunnel {
   connections: Array<{ colo_name: string; is_pending_reconnect: boolean; opened_at: string }>
 }
 
+export interface CFTunnelConnector {
+  id: string
+  colo_name?: string
+  is_pending_reconnect?: boolean
+  opened_at?: string
+  client_id?: string
+  origin_ip?: string
+}
+
+export interface CFTunnelToken {
+  tunnel_id: string
+  token: string
+  fetched_at: string
+}
+
 export interface CFDnsRecord {
   id: string
   type: 'A' | 'AAAA' | 'CNAME' | 'MX' | 'TXT' | 'NS' | 'SRV'
@@ -49,4 +64,10 @@ export interface CreateDnsRecordInput {
   content: string
   ttl?: number
   proxied?: boolean
+}
+
+export interface CreateZoneInput {
+  account_id: string
+  name: string
+  type?: 'full' | 'partial'
 }

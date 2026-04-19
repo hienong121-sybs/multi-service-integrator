@@ -36,6 +36,12 @@ export const SERVICE_META: ServiceMeta[] = [
     description: 'Manage email domains and API keys.',
   },
   {
+    type: 'azure',
+    label: 'Azure DevOps',
+    icon: 'cloud',
+    description: 'Manage Azure projects, repositories, pipelines, and artifacts.',
+  },
+  {
     type: 'google-creds',
     label: 'Google Credentials',
     icon: 'key-round',

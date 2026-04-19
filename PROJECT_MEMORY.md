@@ -349,6 +349,73 @@ tasks:
       - /PROJECT_MEMORY.md
     notes: "Initialized and fully updated project memory for all tasks."
 
+
+  - task_id: T-504
+    title: "GitHub Service UI Optimization (cache-first actions flow)"
+    status: DONE
+    agent: chatgpt
+    started_at: 2026-04-18T17:10:00+07:00
+    completed_at: 2026-04-18T17:45:00+07:00
+    files_changed:
+      - /src/services/github/types.ts
+      - /src/services/github/GithubApi.ts
+      - /src/services/github/GithubService.ts
+      - /src/components/services/_shared/GithubActionsPanel.tsx
+      - /src/app/dashboard/services/[type]/[id]/page.tsx
+    notes: "Implemented cache-first org/repo/workflow/run/log/secret flow for GitHub account detail. Added manual refresh semantics (refresh=1) to reduce GitHub API calls and converted GitHub detail UI to combo + action buttons workflow."
+
+
+  - task_id: T-505
+    title: "Cloudflare Service UI Optimization (cache-first actions flow)"
+    status: DONE
+    agent: chatgpt
+    started_at: 2026-04-18T18:00:00+07:00
+    completed_at: 2026-04-18T18:40:00+07:00
+    files_changed:
+      - /src/services/cloudflare/types.ts
+      - /src/services/cloudflare/CloudflareApi.ts
+      - /src/services/cloudflare/CloudflareService.ts
+      - /src/components/services/_shared/CloudflareActionsPanel.tsx
+      - /src/app/dashboard/services/[type]/[id]/page.tsx
+    notes: "Implemented Cloudflare cache-first control flow with zones/domains, nameservers, tunnels, tunnel token, connector disconnect, and DNS create/update/delete actions using combo + button interactions."
+
+
+  - task_id: T-506
+    title: "GitHub repo file/zip actions + Azure DevOps service"
+    status: DONE
+    agent: chatgpt
+    started_at: 2026-04-18T19:00:00+07:00
+    completed_at: 2026-04-18T20:00:00+07:00
+    files_changed:
+      - /src/services/github/types.ts
+      - /src/services/github/GithubApi.ts
+      - /src/services/github/GithubService.ts
+      - /src/components/services/_shared/GithubActionsPanel.tsx
+      - /src/services/azure/types.ts
+      - /src/services/azure/AzureSchema.ts
+      - /src/services/azure/AzureApi.ts
+      - /src/services/azure/AzureService.ts
+      - /src/services/azure/index.ts
+      - /src/components/services/_shared/AzureActionsPanel.tsx
+      - /src/services/_registry/index.ts
+      - /src/services/_registry/serviceMeta.ts
+      - /src/services/_registry/serviceForms.ts
+      - /src/types/service.d.ts
+      - /src/app/dashboard/services/[type]/[id]/page.tsx
+    notes: "Added GitHub repository zip + file-content actions and introduced Azure DevOps PAT-based service with cache-first project/repo/pipeline/run/file/zip workflows and dedicated UI panel."
+
+
+  - task_id: T-507
+    title: "RTDB multi-project replication + backfill sync"
+    status: DONE
+    agent: chatgpt
+    started_at: 2026-04-19T08:10:00+00:00
+    completed_at: 2026-04-19T09:00:00+00:00
+    files_changed:
+      - /src/lib/firebase/ShardManager.ts
+      - /src/lib/firebase/index.ts
+    notes: "Implemented multi-project replication markers (replicatedShards), fixed shard_index placement on deterministic index shard, added read fallback across shards, and background backfill for newly added shards so old records sync once and are marked to avoid re-sync loops."
+
 found_bugs: []
 
 pending_files: []

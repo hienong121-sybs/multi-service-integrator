@@ -9,7 +9,10 @@ import JSZip from 'jszip'
 import type {
   CreateHookInput,
   GithubHook,
+  GithubOrg,
   GithubRepo,
+  GithubRepoFile,
+  GithubRepoZip,
   GithubRepoSecret,
   GithubUser,
   GithubWorkflow,
@@ -44,6 +47,11 @@ export class GithubApi {
     return this.request<GithubRepo[]>(`/user/repos?per_page=${Math.min(perPage, 100)}&page=${page}&sort=updated`)
   }
 
+  /** Lists organizations available to the authenticated user. */
+  async listOrgs(): Promise<GithubOrg[]> {
+    return this.request<GithubOrg[]>('/user/orgs?per_page=100')
+  }
+
   /** Lists all repositories by paginating until the last page. */
   async listAllRepos(): Promise<GithubRepo[]> {
     const output: GithubRepo[] = []
@@ -61,6 +69,39 @@ export class GithubApi {
   async listWorkflows(owner: string, repo: string): Promise<GithubWorkflow[]> {
     const result = await this.request<{ workflows: GithubWorkflow[] }>(`/repos/${owner}/${repo}/actions/workflows`)
     return result.workflows
+  }
+
+  /** Downloads repository file content by path/ref. */
+  async getRepoFile(owner: string, repo: string, path: string, ref = 'main'): Promise<GithubRepoFile> {
+    const safePath = path.replace(/^\/+/, '')
+    const result = await this.request<{ content?: string; encoding?: string; size?: number }>(
+      `/repos/${owner}/${repo}/contents/${safePath}?ref=${encodeURIComponent(ref)}`,
+    )
+
+    let content = ''
+    if (result.encoding === 'base64' && typeof result.content === 'string') {
+      content = Buffer.from(result.content.replace(/\n/g, ''), 'base64').toString('utf8')
+    } else if (typeof result.content === 'string') {
+      content = result.content
+    }
+
+    return {
+      repo_name: repo,
+      path: `/${safePath}`,
+      ref,
+      encoding: result.encoding,
+      size: result.size,
+      content,
+    }
+  }
+
+  /** Returns direct zip download URL for repository source by ref. */
+  getRepoZipUrl(owner: string, repo: string, ref = 'main'): GithubRepoZip {
+    return {
+      repo_name: repo,
+      ref,
+      download_url: `https://codeload.github.com/${owner}/${repo}/zip/refs/heads/${encodeURIComponent(ref)}`,
+    }
   }
 
   /** Triggers a workflow dispatch. */

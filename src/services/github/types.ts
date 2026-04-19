@@ -32,6 +32,18 @@ export interface GithubRepo {
   updated_at: string
   html_url: string
   clone_url: string
+  owner?: {
+    login: string
+  }
+}
+
+export interface GithubOrg {
+  id: number
+  login: string
+  avatar_url: string
+  url: string
+  repos_url: string
+  description?: string | null
 }
 
 export interface GithubWorkflow {
@@ -86,6 +98,21 @@ export interface GithubWorkflowLog {
     content: string
   }>
   preview: string
+}
+
+export interface GithubRepoFile {
+  repo_name: string
+  path: string
+  ref: string
+  encoding?: string
+  size?: number
+  content: string
+}
+
+export interface GithubRepoZip {
+  repo_name: string
+  ref: string
+  download_url: string
 }
 
 export interface GithubUser {

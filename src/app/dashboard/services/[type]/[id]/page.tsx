@@ -8,6 +8,9 @@ import { auth } from '@/lib/auth/auth'
 import { getServiceMeta } from '@/services/_registry/serviceMeta'
 import { ServiceRegistry } from '@/services/_registry'
 import { SubResourcePanel } from '@/components/services/_shared/SubResourcePanel'
+import { GithubActionsPanel } from '@/components/services/_shared/GithubActionsPanel'
+import { CloudflareActionsPanel } from '@/components/services/_shared/CloudflareActionsPanel'
+import { AzureActionsPanel } from '@/components/services/_shared/AzureActionsPanel'
 
 export default async function ServiceDetailPage({ params }: { params: Promise<{ type: string; id: string }> }) {
   const { type, id } = await params
@@ -53,11 +56,25 @@ export default async function ServiceDetailPage({ params }: { params: Promise<{ 
         <pre className="code-block mt-4">{JSON.stringify(resolvedAccount.config, null, 2)}</pre>
       </section>
 
-      <section className="grid gap-6 xl:grid-cols-2">
-        {subResourceTypes.map((subType) => (
-          <SubResourcePanel key={subType.type} serviceType={type} accountId={id} uid={session.user.uid} subResourceType={subType} />
-        ))}
-      </section>
+      {type === 'github' ? (
+        <section>
+          <GithubActionsPanel serviceType={type} accountId={id} />
+        </section>
+      ) : type === 'cloudflare' ? (
+        <section>
+          <CloudflareActionsPanel serviceType={type} accountId={id} />
+        </section>
+      ) : type === 'azure' ? (
+        <section>
+          <AzureActionsPanel serviceType={type} accountId={id} />
+        </section>
+      ) : (
+        <section className="grid gap-6 xl:grid-cols-2">
+          {subResourceTypes.map((subType) => (
+            <SubResourcePanel key={subType.type} serviceType={type} accountId={id} uid={session.user.uid} subResourceType={subType} />
+          ))}
+        </section>
+      )}
     </div>
   )
 }

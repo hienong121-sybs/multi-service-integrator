@@ -112,6 +112,12 @@ export const SERVICE_FORM_FIELDS: Record<string, DynamicFormField[]> = {
       showWhen: { field: 'credential_type', values: ['api_key'] },
     },
   ],
+  azure: [
+    { name: 'organization', label: 'Organization', type: 'text', required: true, section: 'config', placeholder: 'your-org' },
+    { name: 'default_project', label: 'Default project', type: 'text', required: false, section: 'config' },
+    { name: 'account_email', label: 'Account email', type: 'email', required: false, section: 'config' },
+    { name: 'pat', label: 'PAT token', type: 'password', required: true, section: 'credentials', placeholder: 'azdpat...' },
+  ],
 }
 
 /** Returns the dynamic field definitions for a service. */

@@ -5,7 +5,14 @@
 
 import { randomBytes } from 'crypto'
 import axios, { AxiosError } from 'axios'
-import type { CFDnsRecord, CFTunnel, CFZone, CreateDnsRecordInput } from './types'
+import type {
+  CFDnsRecord,
+  CFTunnel,
+  CFTunnelConnector,
+  CFZone,
+  CreateDnsRecordInput,
+  CreateZoneInput,
+} from './types'
 
 const CF_ERROR_MAP: Record<number, string> = {
   400: 'CF-API-000',
@@ -57,6 +64,18 @@ export class CloudflareApi {
     return response.result
   }
 
+  /** Lists active connectors for one tunnel. */
+  async listTunnelConnectors(accountId: string, tunnelId: string): Promise<CFTunnelConnector[]> {
+    const response = await this.request<CFTunnelConnector[]>(`/accounts/${accountId}/cfd_tunnel/${tunnelId}/connections`)
+    return response.result
+  }
+
+  /** Disconnects one connector (or all if clientId omitted) from a tunnel. */
+  async disconnectTunnelConnector(accountId: string, tunnelId: string, clientId?: string): Promise<void> {
+    const suffix = clientId ? `?client_id=${encodeURIComponent(clientId)}` : ''
+    await this.request(`/accounts/${accountId}/cfd_tunnel/${tunnelId}/connections${suffix}`, { method: 'DELETE' })
+  }
+
   /** Creates a Cloudflare tunnel. */
   async createTunnel(accountId: string, name: string): Promise<CFTunnel> {
     const response = await this.request<CFTunnel>(`/accounts/${accountId}/cfd_tunnel`, {
@@ -78,6 +97,24 @@ export class CloudflareApi {
   async getTunnelToken(accountId: string, tunnelId: string): Promise<string> {
     const response = await this.request<string>(`/accounts/${accountId}/cfd_tunnel/${tunnelId}/token`)
     return response.result
+  }
+
+  /** Creates a new zone (domain) under account. */
+  async createZone(input: CreateZoneInput): Promise<CFZone> {
+    const response = await this.request<CFZone>('/zones', {
+      method: 'POST',
+      body: {
+        name: input.name,
+        account: { id: input.account_id },
+        type: input.type ?? 'full',
+      },
+    })
+    return response.result
+  }
+
+  /** Deletes a zone. */
+  async deleteZone(zoneId: string): Promise<void> {
+    await this.request(`/zones/${zoneId}`, { method: 'DELETE' })
   }
 
   /** Lists DNS records for a zone. */
@@ -104,6 +141,21 @@ export class CloudflareApi {
   /** Deletes a DNS record. */
   async deleteDnsRecord(zoneId: string, recordId: string): Promise<void> {
     await this.request(`/zones/${zoneId}/dns_records/${recordId}`, { method: 'DELETE' })
+  }
+
+  /** Updates a DNS record in place. */
+  async updateDnsRecord(zoneId: string, recordId: string, record: Partial<CreateDnsRecordInput>): Promise<CFDnsRecord> {
+    const response = await this.request<CFDnsRecord>(`/zones/${zoneId}/dns_records/${recordId}`, {
+      method: 'PATCH',
+      body: {
+        ...(record.type ? { type: record.type } : {}),
+        ...(record.name ? { name: record.name } : {}),
+        ...(record.content ? { content: record.content } : {}),
+        ...(typeof record.ttl === 'number' ? { ttl: record.ttl } : {}),
+        ...(typeof record.proxied === 'boolean' ? { proxied: record.proxied } : {}),
+      },
+    })
+    return response.result
   }
 
   /** Performs a Cloudflare API request with retry. */
